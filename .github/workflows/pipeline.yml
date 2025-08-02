@@ -1,4 +1,4 @@
-name: Pipeline
+name: Deployment pipeline
 
 on:
   push:
@@ -7,12 +7,13 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
+    types: [opened, synchronize]
+env:
+  SHOULD_DEPLOY: ${{ github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
 
 jobs:
-  lint-build-test:
+  simple_deployment_pipeline:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Lint the code
+      - name: Run linter
         run: npm run eslint
 
       - name: Build the app
@@ -33,3 +34,24 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Trigger deployment
+        if: ${{ github.event_name == 'push' }}
+        run: curl https://api.render.com/deploy/srv-${{ secrets.RENDER_SERVICE_ID }}?key=${{ secrets.RENDER_API_KEY }}
+      - name: Trigger deployment
+        if: ${{ env.SHOULD_DEPLOY == 'true' }}
+        run: curl https://api.render.com/deploy/srv-${{ secrets.RENDER_SERVICE_ID }}?key=${{ secrets.RENDER_API_KEY }}
+
+  tag_release:
+    needs: [simple_deployment_pipeline]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.env.SHOULD_DEPLOY == 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.64.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BUMP: patch
