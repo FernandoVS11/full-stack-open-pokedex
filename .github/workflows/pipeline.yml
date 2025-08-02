@@ -1,4 +1,4 @@
-name: Deployment pipeline
+name: Pipeline
 
 on:
   push:
@@ -7,11 +7,12 @@ on:
   pull_request:
     branches:
       - main
-    types: [opened, synchronize]
+  workflow_dispatch:
 
 jobs:
-  simple_deployment_pipeline:
+  lint-build-test:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run linter
+      - name: Lint the code
         run: npm run eslint
 
       - name: Build the app
@@ -32,21 +33,3 @@ jobs:
 
       - name: Run tests
         run: npm test
-
-      - name: Trigger deployment
-        if: ${{ github.event_name == 'push' }}
-        run: curl https://api.render.com/deploy/srv-${{ secrets.RENDER_SERVICE_ID }}?key=${{ secrets.RENDER_API_KEY }}
-
-  tag_release:
-    needs: [simple_deployment_pipeline]
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' }} # evitar que corra en PRs
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Bump version and push tag
-        uses: anothrNick/github-tag-action@1.64.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEFAULT_BUMP: patch
